@@ -1,8 +1,8 @@
 name: Release
+# Drillion's fork: upstream's release is kept for the test that lints this file, and only
+# ever runs by hand. release-drillion.yml is what builds this fork's releases.
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
 
 jobs:
   binaries:

@@ -1,0 +1,43 @@
+name: release drillion linter
+
+on:
+  push:
+    tags:
+      - "v*-drillion.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.8"
+          cache: false
+      - name: test the linter and its command
+        run: go test . ./cmd/... -count=1
+      - name: build verified static archives
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -eu
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+              go build -buildvcs=false -trimpath \
+              -ldflags "-s -w -X github.com/rhysd/actionlint.version=${VERSION#v} -X 'github.com/rhysd/actionlint.installedFrom=built for Drillion'" \
+              -o actionlint ./cmd/actionlint
+            go version actionlint | grep 'go1.26.8'
+            tar -czf "dist/actionlint-linux-$arch.tar.gz" actionlint LICENSE.txt
+            rm actionlint
+          done
+          (cd dist && sha256sum actionlint-* > CHECKSUMS)
+      - name: publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes "actionlint v1.7.12 rebuilt with Go 1.26.8 and golang.org/x/sys v0.44.0 for Drillion."
